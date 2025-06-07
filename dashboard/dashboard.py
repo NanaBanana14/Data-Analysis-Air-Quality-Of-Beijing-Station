@@ -2,6 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+import numpy as np
+import folium
+from streamlit_folium import st_folium
 
 # === Setup Global ===
 st.set_page_config(page_title="Air Quality Dashboard", layout="wide")
@@ -96,6 +99,9 @@ df = df[
     df['season'].isin(selected_seasons)
 ]
 
+st.title("Dashboard Kualitas Udara")
+st.write("Analisis Data Kualitas Udara Beijing (2013–2017)")
+st.markdown("---")
 
 # === METRICS ===
 col1, col2, col3, col4 = st.columns(4)
@@ -143,7 +149,7 @@ def styled_box(title, value, subtitle=None):
             width: 200px;
             height: 200px;
             padding: 20px;
-            border: 2px solid red;
+            border: 2px solid #b22222;
             border-radius: 10px;
             background-color: transparent;
             text-align: center;
@@ -162,14 +168,14 @@ def styled_box(title, value, subtitle=None):
 
 with col1:
     styled_box(
-        "Hari Paling Bersih",
+        "Udara Paling Bersih",
         cleanest_day['date'].strftime('%Y-%m-%d'),
         f"PM2.5: {cleanest_day['PM2.5']:.2f} µg/m³"
     )
 
 with col2:
     styled_box(
-        "Hari Paling Kotor",
+        "Udara Paling Kotor",
         dirtiest_day['date'].strftime('%Y-%m-%d'),
         f"PM2.5: {dirtiest_day['PM2.5']:.2f} µg/m³"
     )
@@ -194,122 +200,222 @@ with col4:
 
 st.markdown("---")
 
-# === 1. Tren Bulanan PM2.5 ===
-monthly_pm25 = df.groupby('month')['PM2.5'].mean().reset_index()
+# Filter untuk tahun 2013 sampai 2017
+df_2013_2017 = df[(df['year'] >= 2013) & (df['year'] <= 2017)].copy()
+
+# Hitung rata-rata PM2.5 per bulan
+monthly_pm25 = df_2013_2017.groupby('month')['PM2.5'].mean().reset_index()
+
 month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
-fig1, ax1 = plt.subplots(figsize=(12, 6))
-sns.lineplot(data=monthly_pm25, x='month', y='PM2.5', marker='o', ax=ax1, color='#90CAF9')
-ax1.set_title('Rata-rata PM2.5 Bulanan', fontsize=16)
-ax1.set_xlabel('Bulan')
-ax1.set_ylabel('PM2.5 (µg/m³)')
-ax1.set_xticks(range(1, 13))
-ax1.set_xticklabels(month_labels)
+plt.figure(figsize=(10, 5))
+sns.lineplot(data=monthly_pm25, x='month', y='PM2.5', marker='o', color='steelblue', linewidth=2)
 
-# === 2. Korelasi Antar Polutan ===
-pollutants = ['PM2.5', 'PM10', 'SO2', 'NO2', 'CO', 'O3']
-corr_matrix = df[pollutants].corr()
+plt.title('Tren Bulanan Rata-rata PM2.5 (2013–2017)', fontsize=14, weight='bold')
+plt.xlabel('Bulan', fontsize=12)
+plt.ylabel('Konsentrasi PM2.5 (µg/m³)', fontsize=12)
+plt.xticks(ticks=range(1, 13), labels=month_labels)
 
-fig2, ax2 = plt.subplots(figsize=(10, 6))
-sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', vmin=-1, vmax=1,
-            linewidths=0.5, square=True, cbar_kws={"shrink": .8}, ax=ax2)
-ax2.set_title('Matriks Korelasi Polutan', fontsize=16)
+plt.ylim(0, monthly_pm25['PM2.5'].max() * 1.1)
 
-col1, col2 = st.columns([3, 2])
+for idx, row in monthly_pm25.iterrows():
+    plt.text(row['month'], row['PM2.5'] + (monthly_pm25['PM2.5'].max() * 0.03), 
+             f"{row['PM2.5']:.1f}", ha='center', va='bottom', fontsize=9, color='black')
 
-with col1:
-    st.subheader("Tren Bulanan PM2.5")
-    st.pyplot(fig1)
+sns.despine(trim=True)
+plt.grid(visible=True, which='major', axis='y', linestyle='--', alpha=0.7)
 
-with col2:
-    st.subheader("Korelasi Antar Polutan")
-    st.pyplot(fig2)
+plt.tight_layout()
+
+# Tangkap figure sekarang dan tampilkan di Streamlit
+fig1 = plt.gcf()
+st.pyplot(fig1)
 
 # === 3. Rata-rata PM2.5 dan PM10 per Stasiun ===
 avg_pm_station = df.groupby('station')[['PM2.5', 'PM10']].mean().reset_index()
 avg_pm_station = avg_pm_station.sort_values('PM2.5', ascending=False)
 
-fig3, ax3 = plt.subplots(figsize=(12, 8))
-sns.barplot(data=avg_pm_station, x='PM2.5', y='station', color='#90CAF9', label='PM2.5', ax=ax3)
-sns.barplot(data=avg_pm_station, x='PM10', y='station', color='lightcoral', alpha=0.5, label='PM10', ax=ax3)
-ax3.set_title('Rata-rata PM2.5 dan PM10 per Stasiun', fontsize=16)
-ax3.set_xlabel('Konsentrasi Rata-rata (µg/m³)')
-ax3.set_ylabel('Stasiun')
-ax3.legend()
+plt.figure(figsize=(10, 7))
+bar_width = 0.4
+indices = np.arange(len(avg_pm_station))
+plt.barh(indices, avg_pm_station['PM2.5'], height=bar_width, color='royalblue', label='PM2.5')
+plt.barh(indices + bar_width, avg_pm_station['PM10'], height=bar_width, color='tomato', alpha=0.7, label='PM10')
 
-# === 4. PM2.5: Hari Kerja vs Akhir Pekan ===
-fig4, ax4 = plt.subplots(figsize=(6, 5))
-pm25_daytype = df.groupby('day_type')['PM2.5'].mean().reset_index()
-sns.barplot(data=pm25_daytype, x='day_type', y='PM2.5', palette=['#90CAF9', '#F48FB1'], ax=ax4)
-ax4.set_title('Rata-rata PM2.5: Weekday vs Weekend', fontsize=16)
-ax4.set_xlabel('Tipe Hari')
-ax4.set_ylabel('PM2.5 (µg/m³)')
+plt.yticks(indices + bar_width / 2, avg_pm_station['station'])
+plt.xlabel('Konsentrasi Rata-rata (µg/m³)')
+plt.ylabel('Nama Stasiun')
+plt.title('Rata-rata PM2.5 dan PM10 di Setiap Stasiun (2013–2017)', fontsize=14, weight='bold')
+plt.legend(title='Polutan')
+plt.tight_layout()
+st.pyplot(plt.gcf())
+plt.clf()
 
-col3, col4 = st.columns([2, 2])
-with col3:
-    st.subheader("Rata-rata PM2.5 dan PM10 per Stasiun")
-    st.pyplot(fig3)
-with col4:
-    st.subheader("PM2.5: Hari Kerja vs Akhir Pekan")
-    st.pyplot(fig4)
+col1, col2 = st.columns(2)
+
+with col1:
+    # === 2. Korelasi Antar Polutan ===
+    pollutants = ['PM2.5', 'PM10', 'SO2', 'NO2', 'CO', 'O3']
+    corr_matrix = df[pollutants].corr()
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        corr_matrix,
+        annot=True,
+        cmap='coolwarm',
+        fmt='.2f',
+        vmin=-1, vmax=1,
+        linewidths=0.5,
+        square=True,
+        cbar_kws={"shrink": 0.8, "label": "Koefisien Korelasi"}
+    )
+
+    plt.title('Eksplorasi Korelasi Antar Polutan Udara', fontsize=14, weight='bold')
+    plt.xticks(rotation=45, ha='right', fontsize=11)
+    plt.yticks(rotation=0, fontsize=11)
+
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    plt.tight_layout()
+    st.pyplot(plt.gcf())
+    plt.clf()
+    
+with col2:
+    # === 4. PM2.5: Hari Kerja vs Akhir Pekan ===
+    pm25_daytype = df.groupby('day_type')['PM2.5'].mean().reset_index()
+    plt.figure(figsize=(6, 5))
+    sns.barplot(
+        data=pm25_daytype,
+        x='day_type',
+        y='PM2.5',
+        hue='day_type',
+        palette=['steelblue', 'salmon'],
+        edgecolor='black',
+        dodge=False,
+        legend=False
+    )
+    plt.title('Rata-rata Tingkat PM2.5 antara Weekday dan Weekend (2013–2017)', fontsize=14, weight='bold')
+    plt.xlabel('Tipe Hari')
+    plt.ylabel('Rata-rata Konsentrasi PM2.5 (µg/m³)')
+    plt.ylim(0, pm25_daytype['PM2.5'].max() + 10)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+    for index, row in pm25_daytype.iterrows():
+        plt.text(index, row['PM2.5'] + 0.5, f"{row['PM2.5']:.2f}", ha='center', fontsize=11, color='black')
+
+    plt.tight_layout()
+    st.pyplot(plt.gcf())
+    plt.clf()
 
 # === 5. Distribusi PM2.5 dan PM10 Saat Jam Sibuk ===
-st.subheader("Distribusi PM2.5 dan PM10: Jam Sibuk vs Non-Sibuk")
-fig5, (ax5a, ax5b) = plt.subplots(1, 2, figsize=(12, 6))
-sns.boxplot(data=df, x='time_period', y='PM2.5', palette='Blues', ax=ax5a)
-ax5a.set_title('Distribusi PM2.5', fontsize=16)
-ax5a.set_xlabel('Periode Waktu')
-ax5a.set_ylabel('PM2.5 (µg/m³)')
-sns.boxplot(data=df, x='time_period', y='PM10', palette='Oranges', ax=ax5b)
-ax5b.set_title('Distribusi PM10', fontsize=16)
-ax5b.set_xlabel('Periode Waktu')
-ax5b.set_ylabel('PM10 (µg/m³)')
+plt.figure(figsize=(12, 6))
+
+# Subplot PM2.5
+plt.subplot(1, 2, 1)
+sns.boxplot(
+    data=df,
+    x='time_period',
+    y='PM2.5',
+    hue='time_period',
+    palette=['#4A90E2', '#4A90E2'],
+    legend=False
+)
+plt.title('Distribusi PM2.5: Jam Sibuk vs Non Jam Sibuk', fontsize=14, weight='bold')
+plt.xlabel('Periode Waktu', fontsize=12)
+plt.ylabel('Konsentrasi PM2.5 (µg/m³)', fontsize=12)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.ylim(0, df['PM2.5'].max() + 10)
+
+# Subplot PM10
+plt.subplot(1, 2, 2)
+sns.boxplot(
+    data=df,
+    x='time_period',
+    y='PM10',
+    hue='time_period',
+    palette=['#D94F4F', '#D94F4F'],
+    legend=False
+)
+plt.title('Distribusi PM10: Jam Sibuk vs Non Jam Sibuk', fontsize=14, weight='bold')
+plt.xlabel('Periode Waktu', fontsize=12)
+plt.ylabel('Konsentrasi PM10 (µg/m³)', fontsize=12)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.ylim(0, df['PM10'].max() + 10)
+
 plt.tight_layout()
 
-st.pyplot(fig5)
+st.pyplot(plt.gcf())
 
-df['month'] = df['datetime'].dt.month
-df['year'] = df['datetime'].dt.year
-df['date'] = df['datetime'].dt.date
-df['hour'] = df['datetime'].dt.hour
+st.markdown("### Peta Konsentrasi Rata-rata PM2.5 per Stasiun (2013–2017)")
+st.markdown("""
+Peta berikut menunjukkan rata-rata konsentrasi PM2.5 pada masing-masing stasiun pemantauan udara di Beijing.
+Warna lingkaran merepresentasikan tingkat kualitas udara:
+- 🟢 Hijau: Baik (≤ 35 µg/m³)
+- 🟠 Oranye: Sedang (≤ 75 µg/m³)
+- 🔴 Merah: Buruk (> 75 µg/m³)
+""")
 
-# Tentukan musim
-winter_months = [12, 1, 2]
-summer_months = [6, 7, 8]
+# Tambahkan kolom time_period
+df['time_period'] = df['hour'].apply(lambda h: 'Rush Hour' if 7 <= h <= 10 or 17 <= h <= 20 else 'Non Rush Hour')
 
-df['season'] = df['month'].apply(
-    lambda m: 'Winter' if m in winter_months else ('Summer' if m in summer_months else 'Other')
-)
+# Tambahkan koordinat lokasi stasiun
+station_locations = pd.DataFrame({
+    'station': [
+        'Aotizhongxin', 'Changping', 'Dingling', 'Dongsi', 'Guanyuan',
+        'Gucheng', 'Huairou', 'Nongzhanguan', 'Shunyi', 'Tiantan',
+        'Wanliu', 'Wanshouxigong'
+    ],
+    'latitude': [
+        39.9826, 40.2181, 40.2904, 39.9289, 39.9295,
+        39.9145, 40.3749, 39.9375, 40.1270, 39.8731,
+        39.9996, 39.8949
+    ],
+    'longitude': [
+        116.3970, 116.2317, 116.2302, 116.4177, 116.3393,
+        116.1853, 116.6371, 116.4708, 116.6545, 116.4123,
+        116.2785, 116.3466
+    ]
+})
 
-# --- Rata-rata PM2.5 per Musim ---
-st.subheader("Rata-rata PM2.5 per Musim (2013-2017)")
-seasonal_pm25 = df.groupby('season')['PM2.5'].mean().reset_index()
+df = df.merge(station_locations, on='station', how='left')
 
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.barplot(data=seasonal_pm25, x='season', y='PM2.5', color='steelblue', ax=ax)
-ax.set_ylabel('Rata-rata PM2.5 (µg/m³)')
-ax.set_title('Rata-rata PM2.5 per Musim (2013-2017)')
-st.pyplot(fig)
+# === Peta Interaktif Rata-rata PM2.5 ===
+station_avg = df.groupby('station').agg({
+    'PM2.5': 'mean',
+    'latitude': 'first',
+    'longitude': 'first'
+}).reset_index()
 
-# --- PM2.5 maksimum tiap tahun ---
-st.subheader("PM2.5 Maksimum per Tahun (2013-2017)")
-max_pm25_per_year = df.groupby('year')['PM2.5'].max().reset_index()
+map_beijing = folium.Map(location=[39.9, 116.4], zoom_start=10, tiles='CartoDB positron')
 
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.lineplot(data=max_pm25_per_year, x='year', y='PM2.5', marker='o', ax=ax)
-ax.set_ylabel('PM2.5 Maksimum (µg/m³)')
-ax.set_title('PM2.5 Maksimum per Tahun (2013-2017)')
-st.pyplot(fig)
+def pm25_color(pm25):
+    if pm25 <= 35:
+        return 'green'
+    elif pm25 <= 75:
+        return 'orange'
+    else:
+        return 'red'
 
-# --- Tren tahunan PM2.5 rata-rata ---
-st.subheader("Tren Rata-rata PM2.5 Tahunan (2013-2017)")
-annual_pm25 = df.groupby('year')['PM2.5'].mean().reset_index()
+for _, row in station_avg.iterrows():
+    folium.CircleMarker(
+        location=[row['latitude'], row['longitude']],
+        radius=8,
+        popup=folium.Popup(
+            f"<b>{row['station']}</b><br>Rata-rata PM2.5: {row['PM2.5']:.2f} µg/m³", max_width=250
+        ),
+        color=pm25_color(row['PM2.5']),
+        fill=True,
+        fill_color=pm25_color(row['PM2.5']),
+        fill_opacity=0.7
+    ).add_to(map_beijing)
 
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.lineplot(data=annual_pm25, x='year', y='PM2.5', marker='o', ax=ax)
-ax.set_ylabel('Rata-rata PM2.5 (µg/m³)')
-ax.set_title('Rata-rata PM2.5 Tahunan (2013-2017)')
-st.pyplot(fig)
+
+from streamlit_folium import st_folium
+st_folium(map_beijing, width=800, height=500)
+
 
 # === Footer ===
 st.markdown("---")
