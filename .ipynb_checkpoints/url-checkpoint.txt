@@ -1,2 +1,0 @@
-Url Dashboard yang sudah di deploy
-https://data-analysis-air-quality-of-beijing-station.streamlit.app/
