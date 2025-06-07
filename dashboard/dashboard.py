@@ -18,6 +18,13 @@ df['day_type'] = df['day_of_week'].apply(lambda x: 'Weekend' if x >= 5 else 'Wee
 df['hour'] = df['datetime'].dt.hour
 df['time_period'] = df['hour'].apply(lambda h: 'Rush Hour' if (7 <= h <= 10 or 17 <= h <= 20) else 'Non Rush Hour')
 
+winter_months = [12, 1, 2]
+summer_months = [6, 7, 8]
+
+df['season'] = df['month'].apply(
+    lambda m: 'Winter' if m in winter_months else ('Summer' if m in summer_months else 'Other')
+)
+
 # === Sidebar ===
 with st.sidebar:
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -26,7 +33,6 @@ with st.sidebar:
 
     st.markdown("## Filter Data")
     
-    # Rentang Tanggal
     min_date = df['datetime'].min().date()
     max_date = df['datetime'].max().date()
 
@@ -37,28 +43,24 @@ with st.sidebar:
         max_value=max_date
     )
 
-    # Tahun
     selected_years = st.multiselect(
         "Pilih Tahun:",
         options=sorted(df['year'].unique()),
         default=sorted(df['year'].unique())
     )
 
-    # Stasiun
     selected_stations = st.multiselect(
         "Pilih Stasiun:",
         options=sorted(df['station'].unique()),
         default=sorted(df['station'].unique())
     )
 
-    # Rentang Jam
     selected_hour_range = st.slider(
         "Pilih Rentang Jam (24-jam):",
         min_value=0, max_value=23,
         value=(0, 23)
     )
 
-    # PM2.5 Range
     min_pm25 = float(df['PM2.5'].min())
     max_pm25 = float(df['PM2.5'].max())
     selected_pm25_range = st.slider(
@@ -68,20 +70,19 @@ with st.sidebar:
         value=(min_pm25, max_pm25)
     )
 
-    # Tipe Hari
     selected_day_type = st.multiselect(
         "Tipe Hari:",
         options=df['day_type'].unique(),
         default=list(df['day_type'].unique())
     )
 
-    # Musim
     selected_seasons = st.multiselect(
         "Musim:",
         options=df['season'].unique(),
         default=list(df['season'].unique())
     )
 
+# === Filter Data ===
 df = df[
     df['year'].isin(selected_years) &
     df['station'].isin(selected_stations) &
