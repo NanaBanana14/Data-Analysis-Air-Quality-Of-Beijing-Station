@@ -24,12 +24,12 @@ submission
 ├───dashboard
 │   ├───logo                   # logo
 │   │   ├───dashboard.png
-│   ├───main\_data.csv          # Dataset hasil preprocessing
+│   ├───main_data.csv          # Dataset hasil preprocessing
 │   └───dashboard.py           # Streamlit app
 ├───data
-│   ├───data\_1.csv             # Raw data bagian 1
-│   ├───data\_2.csv             # Raw data bagian 2
-│   └───combined\_data.csv      # Gabungan data\_1 dan data\_2 (sebelum cleaning)
+│   ├───data.csv             # Raw data bagian 1
+│   ├───data.csv             # Raw data bagian 2
+│   └───combined_data.csv      # Gabungan data\_1 dan data\_2 (sebelum cleaning)
 ├───notebook.ipynb             # Notebook EDA dan preprocessing
 ├───README.md                  # File ini
 ├───requirements.txt           # Dependensi proyek
