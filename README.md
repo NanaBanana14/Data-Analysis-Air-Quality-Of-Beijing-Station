@@ -23,6 +23,7 @@ Visualisasi data dikembangkan untuk menjawab beberapa pertanyaan bisnis yang rel
 submission
 ├───dashboard
 │   ├───logo                   # logo
+│   │   ├───dashboard.png
 │   ├───main\_data.csv          # Dataset hasil preprocessing
 │   └───dashboard.py           # Streamlit app
 ├───data
