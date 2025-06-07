@@ -12,7 +12,7 @@ sns.set_theme(style='dark')
 plt.rcParams["axes.spines.top"] = True
 plt.rcParams["axes.spines.right"] = True
 
-df = pd.read_csv("main_data.csv", parse_dates=["datetime"])
+df = pd.read_csv("dashboard/main_data.csv", parse_dates=["datetime"])
 df['month'] = df['datetime'].dt.month
 df['year'] = df['datetime'].dt.year
 df['date'] = df['datetime'].dt.date
@@ -32,7 +32,7 @@ df['season'] = df['month'].apply(
 with st.sidebar:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("logo/dashboard.png", width=200)
+        st.image("dashboard/logo/dashboard.png", width=200)
 
     st.markdown("## Filter Data")
     
